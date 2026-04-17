@@ -42,7 +42,10 @@ app = FastAPI(title="RAG document chat", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://rag-document-chat-two.vercel.app"
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
