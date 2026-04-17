@@ -16,8 +16,8 @@ type ChatMessage =
       sources?: SourceMeta[];
     };
 
-const CHAT_URL = "http://localhost:8000/chat";
-const UPLOAD_URL = "http://localhost:8000/upload";
+    const CHAT_URL = "https://rag-document-chat-production-149e.up.railway.app/chat";
+    const UPLOAD_URL = "https://rag-document-chat-production-149e.up.railway.app/upload";
 
 function isPdfFile(file: File): boolean {
   if (!file.name.toLowerCase().endsWith(".pdf")) return false;
