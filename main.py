@@ -191,6 +191,14 @@ async def upload_pdf(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not read PDF: {e}") from e
 
+    try:
+        sb.table("documents").delete().neq("id", 0).execute()
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Supabase delete failed: {e}",
+        ) from e
+
     chunks_stored = 0
 
     for page_index in range(len(reader.pages)):
