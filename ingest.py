@@ -4,7 +4,7 @@ import sys
 import dotenv
 import PyPDF2
 import supabase
-from sentence_transformers import SentenceTransformer
+import voyageai
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
@@ -36,12 +36,16 @@ def main() -> None:
 
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_KEY")
+    voyage_key = os.getenv("VOYAGE_API_KEY")
     if not supabase_url or not supabase_key:
         print("Error: SUPABASE_URL and SUPABASE_KEY must be set in the environment.", file=sys.stderr)
         sys.exit(1)
+    if not voyage_key:
+        print("Error: VOYAGE_API_KEY must be set in the environment.", file=sys.stderr)
+        sys.exit(1)
 
     filename = os.path.basename(pdf_path)
-    model = SentenceTransformer('all-MiniLM-L6-v2')
+    vo = voyageai.Client(api_key=voyage_key)
     sb = supabase.create_client(supabase_url, supabase_key)
 
     reader = PyPDF2.PdfReader(pdf_path)
@@ -55,7 +59,8 @@ def main() -> None:
         chunks = chunk_text(text)
 
         for chunk_i, chunk in enumerate(chunks, start=1):
-            embedding = model.encode(chunk).tolist()
+            result = vo.embed([chunk], model="voyage-3-lite")
+            embedding = list(result.embeddings[0])
 
             row = {
                 "content": chunk,

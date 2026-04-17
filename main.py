@@ -9,27 +9,32 @@ dotenv.load_dotenv()
 
 import PyPDF2
 import uvicorn
+import voyageai
 from anthropic import Anthropic
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sentence_transformers import SentenceTransformer
 from supabase import create_client
 
 from ingest import chunk_text
+
+
+def voyage_embed(vo: voyageai.Client, text: str) -> list[float]:
+    result = vo.embed([text], model="voyage-3-lite")
+    return list(result.embeddings[0])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     missing = [
         k
-        for k in ("SUPABASE_URL", "SUPABASE_KEY", "ANTHROPIC_API_KEY")
+        for k in ("SUPABASE_URL", "SUPABASE_KEY", "ANTHROPIC_API_KEY", "VOYAGE_API_KEY")
         if not os.environ.get(k)
     ]
     if missing:
         raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
 
-    app.state.embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+    app.state.voyage = voyageai.Client(api_key=os.environ["VOYAGE_API_KEY"])
     app.state.supabase = create_client(
         os.environ["SUPABASE_URL"],
         os.environ["SUPABASE_KEY"],
@@ -104,11 +109,11 @@ def debug(request: Request) -> DebugResponse:
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(body: ChatRequest, request: Request) -> ChatResponse:
-    embed_model: SentenceTransformer = request.app.state.embed_model
+    vo: voyageai.Client = request.app.state.voyage
     sb = request.app.state.supabase
     anthropic_client: Anthropic = request.app.state.anthropic
 
-    embedding = embed_model.encode(body.question).tolist()
+    embedding = voyage_embed(vo, body.question)
 
     try:
         result = sb.rpc(
@@ -186,7 +191,7 @@ async def upload_pdf(
             detail="File does not appear to be a valid PDF.",
         )
 
-    embed_model: SentenceTransformer = request.app.state.embed_model
+    vo: voyageai.Client = request.app.state.voyage
     sb = request.app.state.supabase
 
     try:
@@ -209,7 +214,7 @@ async def upload_pdf(
         page = reader.pages[page_index]
         text = page.extract_text() or ""
         for chunk in chunk_text(text):
-            embedding = embed_model.encode(chunk).tolist()
+            embedding = voyage_embed(vo, chunk)
             row = {
                 "content": chunk,
                 "embedding": embedding,
